@@ -1,0 +1,15 @@
+{
+  "name": "Suazo Family Plan",
+  "short_name": "Suazo Plan",
+  "description": "Weekly meal and workout plan for Jeffrey and Dulce",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#11231c",
+  "theme_color": "#1b4332",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
