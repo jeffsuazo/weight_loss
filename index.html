@@ -266,6 +266,18 @@
   .drawer-sec .btn{width:100%;margin-bottom:8px;text-align:left;}
   .disclaimer{font-size:.74rem;color:var(--muted);line-height:1.5;background:var(--bg-soft);border-radius:10px;padding:11px 12px;margin-top:8px;}
   .footer-note{font-size:.72rem;color:var(--muted);text-align:center;margin-top:30px;line-height:1.6;}
+  /* warm-up / cool-down */
+  .wc-card .card-h{margin-bottom:6px;}
+  .wc-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline);}
+  .wc-row:last-child{border-bottom:none;}
+  .wc-row.done .wc-n{text-decoration:line-through;color:var(--muted);}
+  .wc-check{width:26px;height:26px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer;}
+  .wc-row.done .wc-check{background:var(--green-pale);border-color:var(--green);color:var(--green);}
+  .wc-main{flex:1;min-width:0;}
+  .wc-n{font-weight:600;font-size:.82rem;}
+  .wc-d{font-size:.72rem;color:var(--muted);}
+  .wc-row .btn.sm{white-space:nowrap;min-width:64px;}
+  .wc-row .form-link{padding:6px 8px;}
 </style>
 </head>
 <body>
@@ -549,6 +561,56 @@ const DULCE_HIIT=[
   {name:'Tabata',meta:'20s work / 10s rest · 8 rounds (~4 min)',work:20,rest:10,rounds:8}
 ];
 
+/* ---- Warm-up & cool-down. Same fixed block per session type. ----
+   item = {n:name, d:detail, t:seconds|null (timed), f:form search terms} */
+function wu(n,d,t,f){return {n,d,t:t||null,f:encodeURIComponent((f||n))};}
+const WARMUP={
+  strength:[
+    wu('Easy cardio','2 min · march, bike, or brisk walk',120,'warm up cardio marching'),
+    wu('Arm circles','20 total (10 each way)',null,'arm circles warm up'),
+    wu('Band pull-aparts','15 reps',null,'band pull apart form'),
+    wu('Bodyweight squats','12 reps',null,'bodyweight squat form'),
+    wu('Walking lunge with reach','8 total',null,'walking lunge with reach mobility'),
+    wu('Leg swings','10 each leg',null,'leg swings warm up'),
+    wu('Torso rotations','10 each side',null,'standing torso rotation warm up')
+  ],
+  cardio:[
+    wu('Easy-pace cardio','3 min · ease in',180,'easy cardio warm up'),
+    wu('Leg swings','10 each leg',null,'leg swings warm up'),
+    wu('Ankle circles','10 each',null,'ankle circles mobility')
+  ],
+  dulce:[
+    wu('Easy cardio','2 min',120,'warm up cardio marching'),
+    wu('Transverse abdominis activation','10 slow breaths',null,'transverse abdominis activation diastasis'),
+    wu('Glute bridges','12 reps',null,'glute bridge form'),
+    wu('Bird dogs','8 each side',null,'bird dog exercise diastasis safe'),
+    wu('Arm circles','20 total',null,'arm circles warm up'),
+    wu('Bodyweight squats','10 reps',null,'bodyweight squat form')
+  ]
+};
+const COOLDOWN={
+  strength:[
+    wu('Easy walk','2 min',120,'cool down walk'),
+    wu('Chest / shoulder stretch','30 sec each side',30,'chest shoulder stretch'),
+    wu('Quad stretch','30 sec each leg',30,'standing quad stretch'),
+    wu('Hamstring stretch','30 sec each leg',30,'hamstring stretch'),
+    wu('Standing spinal twist','20 sec each side',20,'standing spinal twist stretch')
+  ],
+  cardio:[
+    wu('Gradual slowdown','2 min',120,'cool down walk'),
+    wu('Calf stretch','30 sec each',30,'calf stretch'),
+    wu('Hamstring stretch','30 sec each',30,'hamstring stretch'),
+    wu('Hip-flexor stretch','30 sec each',30,'hip flexor stretch')
+  ],
+  dulce:[
+    wu('Easy walk','2 min',120,'cool down walk'),
+    wu('Gentle hamstring stretch','30 sec each',30,'gentle hamstring stretch'),
+    wu('Hip-flexor stretch','30 sec each',30,'hip flexor stretch'),
+    wu('Chest / shoulder stretch','30 sec each',30,'chest shoulder stretch'),
+    wu('Slow diaphragmatic breathing','1 min',60,'diaphragmatic breathing pelvic floor')
+  ]
+};
+
 /* =========================================================
    STATE
    ========================================================= */
@@ -770,24 +832,76 @@ function tabBar(pairs){
   for(let i=0;i<pairs.length;i+=2){const k=pairs[i],l=pairs[i+1];s+=`<button class="subtab ${woTab===k?'active':''}" onclick="woTab='${k}';renderWorkout()">${l}</button>`;}
   return s+'</div>';
 }
+/* warm-up / cool-down — in-memory checks (reset each app open = per session) */
+let wcCheck={}, wcTimers={}, wcForceOpen={};
+function wcKey(type,kind,i){return type+'_'+kind+'_'+i;}
+function wcToggle(type,kind,i){const k=wcKey(type,kind,i);wcCheck[k]=!wcCheck[k];renderWorkout();}
+function wcHeaderToggle(type,kind){const k=type+'_'+kind;wcForceOpen[k]=!wcForceOpen[k];renderWorkout();}
+function wcCountdown(id,secs){
+  const el=document.getElementById(id);if(!el)return;
+  if(wcTimers[id]){clearInterval(wcTimers[id]);wcTimers[id]=null;el.textContent=secs+'s';return;}
+  let left=secs;el.textContent=left+'s';
+  wcTimers[id]=setInterval(()=>{left--;if(left<=0){clearInterval(wcTimers[id]);wcTimers[id]=null;el.textContent='✓';return;}el.textContent=left+'s';},1000);
+}
+function wcBlock(kind,type,startCollapsed){
+  const data=kind==='warm'?WARMUP[type]:COOLDOWN[type];
+  if(!data)return '';
+  const title=kind==='warm'?'Warm-up':'Cool-down';
+  const ic=kind==='warm'?icon('bolt','gd'):icon('heart','b');
+  const done=data.filter((_,i)=>wcCheck[wcKey(type,kind,i)]).length;
+  const allDone=done===data.length;
+  const key=type+'_'+kind;
+  const collapsed=startCollapsed ? !wcForceOpen[key] : (allDone && !wcForceOpen[key]);
+  let h=`<div class="card wc-card">
+    <div class="card-h" style="cursor:pointer;justify-content:space-between" onclick="wcHeaderToggle('${type}','${kind}')">
+      <span>${ic} ${title}</span>
+      <span style="font-size:.72rem;color:var(--muted);font-weight:600">${done}/${data.length} <span class="chev" style="display:inline-block;${collapsed?'':'transform:rotate(180deg)'}">${icon('chev','')}</span></span>
+    </div>`;
+  if(!collapsed){
+    data.forEach((it,i)=>{
+      const k=wcKey(type,kind,i), on=wcCheck[k], tid='cd_'+k;
+      h+=`<div class="wc-row${on?' done':''}">
+        <div class="wc-check" onclick="wcToggle('${type}','${kind}',${i})">${on?'✓':'○'}</div>
+        <div class="wc-main"><div class="wc-n">${it.n}</div><div class="wc-d">${it.d}</div></div>
+        ${it.t?`<button class="btn sm" onclick="wcCountdown('${tid}',${it.t})">▶ <span id="${tid}">${it.t}s</span></button>`:''}
+        <a class="form-link" href="https://www.youtube.com/results?search_query=${it.f}" target="_blank" rel="noopener">${icon('play')}</a>
+      </div>`;
+    });
+    if(kind==='warm' && type==='strength'){
+      h+=`<div class="note gold" style="margin-top:8px"><strong>Then:</strong> one light ramp-up set of your first lift (empty bar or light DBs) before your working sets — you'll log working sets in the runner below.</div>`;
+    }
+    if(type==='dulce'){
+      h+=`<div class="disclaimer" style="margin-top:8px">Confirm these with your provider or a pelvic-floor PT. Breathe out on effort — never let the belly bulge.</div>`;
+    }
+  }
+  return h+`</div>`;
+}
+
 function jeffSession(){
   let h=`<div class="note info"><strong>Today:</strong> ${JEFF_WORKOUT.note}</div>`;
+  h+=wcBlock('warm','strength',false);
   JEFF_WORKOUT.rounds.forEach((rnd,ri)=>{
     h+=`<div class="card-h" style="margin-top:16px">${icon('dumbbell','g')} ${rnd.title}</div>`;
     rnd.slots.forEach((slot,si)=>h+=exSlotHTML('jeff',ri,si,slot));
   });
+  h+=wcBlock('cool','strength',false);
   h+=`<div class="card"><div class="card-h">${icon('run','b')} Cardio &amp; extra</div><div class="alt-line">${JEFF_WORKOUT.cardio}</div>
     <div class="extra-line"><input type="text" id="jeff-extra" placeholder="Log extra activity (e.g. 25-min swim)"><button class="btn green sm" onclick="logExtra('jeff')">Add</button></div>
     <div class="note gold" style="margin-top:10px"><strong>Something &gt; nothing.</strong> A short session still counts. Cardio after lifting on strength days.</div></div>`;
+  h+=`<div class="alt-line" style="margin:14px 0 6px">On a cardio day (Tue/Thu)? Use these instead:</div>`;
+  h+=wcBlock('warm','cardio',true);
+  h+=wcBlock('cool','cardio',true);
   return h;
 }
 function dulceLift(){
   let h=`<div class="disclaimer"><strong>Self-directed plan.</strong> Dulce declined the exercise specialist, so this isn't a prescribed program — it's built from what her doctors advised. Confirm new movements with a form check, and confirm the core/pelvic-floor work with her provider or a pelvic-floor PT.</div>`;
   h+=`<div class="note info" style="margin-top:12px"><strong>Lifting (2×/week):</strong> ${DULCE_LIFT.note}</div>`;
+  h+=wcBlock('warm','dulce',false);
   DULCE_LIFT.rounds.forEach((rnd,ri)=>{
     h+=`<div class="card-h" style="margin-top:16px">${icon('dumbbell','r')} ${rnd.title}</div>`;
     rnd.slots.forEach((slot,si)=>h+=exSlotHTML('dulce',ri,si,slot));
   });
+  h+=wcBlock('cool','dulce',false);
   h+=`<div class="card"><div class="card-h">${icon('bolt','r')} Extra activity</div>
     <div class="extra-line"><input type="text" id="dulce-extra" placeholder="Log extra activity (e.g. 30-min walk)"><button class="btn rose sm" onclick="logExtra('dulce')">Add</button></div>
     <div class="note gold" style="margin-top:10px"><strong>Progress, not the scale.</strong> This tab tracks what you did and how you're getting stronger — not a calorie burn.</div></div>`;
@@ -890,6 +1004,7 @@ function historyView(who){
 }
 function dulceHIIT(){
   let h=`<div class="note info"><strong>HIIT (2×/week):</strong> Pick a format, hit start, follow the work/rest cues. Logs as time &amp; rounds — not calories.</div>`;
+  h+=wcBlock('warm','dulce',false);
   DULCE_HIIT.forEach((f,i)=>{
     h+=`<div class="hiit-card"><h4>${f.name}</h4><div class="meta">${f.meta}</div>
       <div class="row-actions"><button class="btn rose sm" onclick="startTimer(${i})">▶ Start</button>
@@ -897,6 +1012,7 @@ function dulceHIIT(){
       <div id="timer-${i}"></div></div>`;
   });
   h+=`<div class="note warn" style="margin-top:6px"><strong>Listen to your body.</strong> With diastasis recti, swap any move that makes the belly bulge for a low-impact version. Stop if anything hurts.</div>`;
+  h+=wcBlock('cool','dulce',false);
   return h;
 }
 let timerState=null;
